@@ -84,6 +84,22 @@ if [ "$(systemd-detect-virt)" == "openvz" ]; then
     exit 1
 fi
 
+# Configure automatic service restart to avoid manual prompts
+echo -e "${green}Configuring system for automatic installation...${NC}"
+
+# Configure needrestart to automatically restart services
+if [ -f /etc/needrestart/needrestart.conf ]; then
+    sed -i "s/#\$nrconf{restart} = 'i';/\$nrconf{restart} = 'a';/" /etc/needrestart/needrestart.conf
+else
+    echo "\$nrconf{restart} = 'a';" > /etc/needrestart/needrestart.conf
+fi
+
+# Set debconf to non-interactive mode
+export DEBIAN_FRONTEND=noninteractive
+
+# Configure dpkg to not ask for service restart confirmations
+echo 'DPkg::Post-Invoke { "if [ -d /run/systemd/system ]; then systemctl daemon-reload; fi"; };' > /etc/apt/apt.conf.d/00-restart-without-asking
+
 # Install dependencies
 echo -e "${green}Installing dependencies...${NC}"
 apt update
@@ -106,6 +122,8 @@ chmod +x ubu20-deb10-stable.sh
 
 # Run base installation (with modifications for API)
 echo -e "${green}Running base VPN installation...${NC}"
+export DEBIAN_FRONTEND=noninteractive
+export NEEDRESTART_MODE=a
 ./ubu20-deb10-stable.sh
 
 clear
