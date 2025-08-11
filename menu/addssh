@@ -1,0 +1,286 @@
+#!/bin/bash
+
+# SSH Account Creator with API Integration
+# AlrelShop VPN Management System
+# Version: 2.0
+
+# Colors
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+BLUE='\033[0;34m'
+PURPLE='\033[0;35m'
+CYAN='\033[0;36m'
+NC='\033[0m'
+
+# API Configuration
+API_CONFIG="/etc/vpn-api/config.json"
+API_URL=""
+API_KEY=""
+
+# Load API configuration
+load_api_config() {
+    if [ -f "$API_CONFIG" ]; then
+        API_KEY=$(grep -o '"api_key": "[^"]*"' $API_CONFIG | cut -d'"' -f4)
+        API_URL="http://localhost:5000"
+    else
+        echo -e "${RED}❌ API configuration not found. Please run installer first.${NC}"
+        exit 1
+    fi
+}
+
+# Function to make API call
+api_call() {
+    local endpoint="$1"
+    local method="$2"
+    local data="$3"
+    
+    if [ "$method" = "GET" ]; then
+        curl -s -H "X-API-Key: $API_KEY" "$API_URL$endpoint"
+    else
+        curl -s -X "$method" \
+             -H "Content-Type: application/json" \
+             -H "X-API-Key: $API_KEY" \
+             -d "$data" \
+             "$API_URL$endpoint"
+    fi
+}
+
+# Display header
+show_header() {
+    clear
+    echo -e "${CYAN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+    echo -e "${YELLOW}                  ALRELSHOP VPN PANEL                   ${NC}"
+    echo -e "${CYAN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+    echo -e "${GREEN}                    SSH Account Creator                  ${NC}"
+    echo -e "${CYAN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+    echo ""
+}
+
+# Create SSH account
+create_ssh_account() {
+    show_header
+    
+    echo -e "${YELLOW}📝 Silakan isi data akun SSH:${NC}"
+    echo ""
+    
+    # Input username
+    while true; do
+        read -p "$(echo -e "${BLUE}👤 Username: ${NC}")" username
+        if [ -z "$username" ]; then
+            echo -e "${RED}❌ Username tidak boleh kosong!${NC}"
+            continue
+        fi
+        
+        # Check if username already exists
+        if id "$username" &>/dev/null; then
+            echo -e "${RED}❌ Username $username sudah ada!${NC}"
+            continue
+        fi
+        break
+    done
+    
+    # Input duration
+    while true; do
+        read -p "$(echo -e "${BLUE}⏰ Durasi (hari): ${NC}")" duration
+        if [[ ! "$duration" =~ ^[0-9]+$ ]] || [ "$duration" -le 0 ]; then
+            echo -e "${RED}❌ Durasi harus angka positif!${NC}"
+            continue
+        fi
+        break
+    done
+    
+    # Input quota
+    echo -e "${BLUE}💾 Pilih Quota:${NC}"
+    echo "1. Unlimited (9999 GB)"
+    echo "2. 10 GB"
+    echo "3. 50 GB"
+    echo "4. 100 GB"
+    echo "5. 500 GB"
+    echo "6. Custom"
+    
+    while true; do
+        read -p "$(echo -e "${BLUE}Pilihan (1-6): ${NC}")" quota_choice
+        case $quota_choice in
+            1) quota=9999; break;;
+            2) quota=10; break;;
+            3) quota=50; break;;
+            4) quota=100; break;;
+            5) quota=500; break;;
+            6) 
+                read -p "$(echo -e "${BLUE}Custom quota (GB): ${NC}")" quota
+                if [[ ! "$quota" =~ ^[0-9]+$ ]]; then
+                    echo -e "${RED}❌ Quota harus angka!${NC}"
+                    continue
+                fi
+                break;;
+            *) echo -e "${RED}❌ Pilihan tidak valid!${NC}";;
+        esac
+    done
+    
+    # Input IP limit
+    while true; do
+        read -p "$(echo -e "${BLUE}🌐 IP Limit (default: 2): ${NC}")" ip_limit
+        if [ -z "$ip_limit" ]; then
+            ip_limit=2
+            break
+        fi
+        if [[ ! "$ip_limit" =~ ^[0-9]+$ ]] || [ "$ip_limit" -le 0 ]; then
+            echo -e "${RED}❌ IP limit harus angka positif!${NC}"
+            continue
+        fi
+        break
+    done
+    
+    echo ""
+    echo -e "${YELLOW}🔄 Membuat akun SSH...${NC}"
+    
+    # Prepare API data
+    api_data=$(cat <<EOF
+{
+    "username": "$username",
+    "duration": $duration,
+    "quota": $quota,
+    "ip_limit": $ip_limit
+}
+EOF
+)
+    
+    # Call API
+    result=$(api_call "/api/ssh/create" "POST" "$api_data")
+    
+    # Parse result
+    if echo "$result" | grep -q '"success": true'; then
+        echo ""
+        echo -e "${GREEN}✅ Akun SSH berhasil dibuat!${NC}"
+        echo -e "${CYAN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+        
+        # Extract and display account info
+        username_result=$(echo "$result" | grep -o '"username": "[^"]*"' | cut -d'"' -f4)
+        password_result=$(echo "$result" | grep -o '"password": "[^"]*"' | cut -d'"' -f4)
+        domain_result=$(echo "$result" | grep -o '"domain": "[^"]*"' | cut -d'"' -f4)
+        expired_result=$(echo "$result" | grep -o '"expired": "[^"]*"' | cut -d'"' -f4)
+        quota_result=$(echo "$result" | grep -o '"quota": "[^"]*"' | cut -d'"' -f4)
+        
+        echo -e "${YELLOW}📋 DETAIL AKUN SSH${NC}"
+        echo -e "${CYAN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+        echo -e "${GREEN}👤 Username    : ${YELLOW}$username_result${NC}"
+        echo -e "${GREEN}🔐 Password    : ${YELLOW}$password_result${NC}"
+        echo -e "${GREEN}🌐 Domain      : ${YELLOW}$domain_result${NC}"
+        echo -e "${GREEN}📅 Expired     : ${YELLOW}$expired_result${NC}"
+        echo -e "${GREEN}💾 Quota       : ${YELLOW}$quota_result GB${NC}"
+        echo -e "${GREEN}🔢 IP Limit    : ${YELLOW}$ip_limit${NC}"
+        echo -e "${CYAN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+        
+        # Connection info
+        echo ""
+        echo -e "${YELLOW}🔗 INFO KONEKSI:${NC}"
+        echo -e "${GREEN}Host          : ${YELLOW}$domain_result${NC}"
+        echo -e "${GREEN}Port OpenSSH  : ${YELLOW}22${NC}"
+        echo -e "${GREEN}Port Dropbear : ${YELLOW}143, 109${NC}"
+        echo -e "${GREEN}Port SSL/TLS  : ${YELLOW}443${NC}"
+        echo -e "${GREEN}Port SQUID    : ${YELLOW}3128${NC}"
+        echo ""
+        
+        # Save to file for backup
+        mkdir -p /root/akun/ssh
+        cat > /root/akun/ssh/$username.txt << EOF
+=== AKUN SSH ===
+Username: $username_result
+Password: $password_result
+Domain: $domain_result
+Expired: $expired_result
+Quota: $quota_result GB
+IP Limit: $ip_limit
+
+=== INFO KONEKSI ===
+Host: $domain_result
+Port OpenSSH: 22
+Port Dropbear: 143, 109  
+Port SSL/TLS: 443
+Port SQUID: 3128
+EOF
+        
+        echo -e "${GREEN}💾 Akun telah disimpan di: /root/akun/ssh/$username.txt${NC}"
+        
+    else
+        error_msg=$(echo "$result" | grep -o '"message": "[^"]*"' | cut -d'"' -f4)
+        echo ""
+        echo -e "${RED}❌ Gagal membuat akun SSH!${NC}"
+        echo -e "${RED}Error: $error_msg${NC}"
+    fi
+    
+    echo ""
+    echo -e "${CYAN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+    read -p "$(echo -e "${YELLOW}Tekan Enter untuk kembali ke menu...${NC}")"
+}
+
+# Show SSH accounts list
+show_ssh_list() {
+    show_header
+    echo -e "${YELLOW}📋 DAFTAR AKUN SSH${NC}"
+    echo -e "${CYAN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+    
+    # Get list from API
+    result=$(api_call "/api/ssh/list" "GET")
+    
+    if echo "$result" | grep -q '"success": true'; then
+        echo -e "${GREEN}USERNAME          EXPIRED           STATUS${NC}"
+        echo -e "${CYAN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+        
+        # Parse and display accounts (simplified - would need proper JSON parsing)
+        # For now, fallback to system method
+        while read expired; do
+            AKUN="$(echo $expired | cut -d: -f1)"
+            ID="$(echo $expired | grep -v nobody | cut -d: -f3)"
+            exp="$(chage -l $AKUN | grep "Account expires" | awk -F": " '{print $2}')"
+            status="$(passwd -S $AKUN | awk '{print $2}')"
+            if [[ $ID -ge 1000 ]]; then
+                if [[ "$status" = "L" ]]; then
+                    printf "%-17s %2s %-17s %2s \n" "$AKUN" "$exp" "LOCKED"
+                else
+                    printf "%-17s %2s %-17s %2s \n" "$AKUN" "$exp" "UNLOCKED"
+                fi
+            fi
+        done < /etc/passwd
+    else
+        echo -e "${RED}❌ Gagal mengambil daftar akun${NC}"
+    fi
+    
+    echo -e "${CYAN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+    read -p "$(echo -e "${YELLOW}Tekan Enter untuk kembali ke menu...${NC}")"
+}
+
+# Main menu
+main_menu() {
+    load_api_config
+    
+    while true; do
+        show_header
+        echo -e "${YELLOW}📋 MENU SSH MANAGEMENT${NC}"
+        echo -e "${CYAN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+        echo -e "${GREEN}[1]${NC} Buat Akun SSH"
+        echo -e "${GREEN}[2]${NC} Lihat Daftar Akun"
+        echo -e "${GREEN}[3]${NC} Kembali ke Menu Utama"
+        echo -e "${CYAN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+        
+        read -p "$(echo -e "${BLUE}Pilih menu [1-3]: ${NC}")" choice
+        
+        case $choice in
+            1) create_ssh_account;;
+            2) show_ssh_list;;
+            3) exit 0;;
+            *) echo -e "${RED}❌ Pilihan tidak valid!${NC}"; sleep 1;;
+        esac
+    done
+}
+
+# Check if running as root
+if [ "$EUID" -ne 0 ]; then
+    echo -e "${RED}❌ Script ini harus dijalankan sebagai root!${NC}"
+    exit 1
+fi
+
+# Run main menu
+main_menu
+

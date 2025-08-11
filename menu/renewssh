@@ -1,0 +1,160 @@
+#!/bin/bash
+
+# SSH Account Renewal with API Integration
+# AlrelShop VPN Management System
+
+# Colors
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+BLUE='\033[0;34m'
+CYAN='\033[0;36m'
+NC='\033[0m'
+
+# API Configuration
+API_CONFIG="/etc/vpn-api/config.json"
+API_URL="http://localhost:5000"
+API_KEY=""
+
+# Load API configuration
+load_api_config() {
+    if [ -f "$API_CONFIG" ]; then
+        API_KEY=$(grep -o '"api_key": "[^"]*"' $API_CONFIG | cut -d'"' -f4)
+    else
+        echo -e "${RED}❌ API configuration not found.${NC}"
+        exit 1
+    fi
+}
+
+# API call function
+api_call() {
+    local endpoint="$1"
+    local method="$2"
+    local data="$3"
+    
+    curl -s -X "$method" \
+         -H "Content-Type: application/json" \
+         -H "X-API-Key: $API_KEY" \
+         -d "$data" \
+         "$API_URL$endpoint"
+}
+
+# Display header
+show_header() {
+    clear
+    echo -e "${CYAN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+    echo -e "${YELLOW}                 PERPANJANG MASA AKTIF SSH              ${NC}"
+    echo -e "${CYAN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+    echo ""
+}
+
+# Show SSH accounts list
+show_ssh_list() {
+    echo -e "${YELLOW}📋 DAFTAR AKUN SSH${NC}"
+    echo -e "${CYAN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+    echo -e "${GREEN}USERNAME          EXPIRED           STATUS${NC}"
+    echo -e "${CYAN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+    
+    while read expired; do
+        AKUN="$(echo $expired | cut -d: -f1)"
+        ID="$(echo $expired | grep -v nobody | cut -d: -f3)"
+        exp="$(chage -l $AKUN | grep "Account expires" | awk -F": " '{print $2}')"
+        status="$(passwd -S $AKUN | awk '{print $2}')"
+        if [[ $ID -ge 1000 ]]; then
+            if [[ "$status" = "L" ]]; then
+                printf "%-17s %2s %-17s %2s \n" "$AKUN" "$exp" "LOCKED"
+            else
+                printf "%-17s %2s %-17s %2s \n" "$AKUN" "$exp" "UNLOCKED"
+            fi
+        fi
+    done < /etc/passwd
+    echo -e "${CYAN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+}
+
+# Renew SSH account
+renew_ssh_account() {
+    show_header
+    show_ssh_list
+    echo ""
+    
+    # Input username
+    while true; do
+        read -p "$(echo -e "${BLUE}👤 Masukkan Username: ${NC}")" username
+        if [ -z "$username" ]; then
+            echo -e "${RED}❌ Username tidak boleh kosong!${NC}"
+            continue
+        fi
+        
+        # Check if user exists
+        if ! id "$username" &>/dev/null; then
+            echo -e "${RED}❌ Username $username tidak ditemukan!${NC}"
+            continue
+        fi
+        break
+    done
+    
+    # Input duration
+    while true; do
+        read -p "$(echo -e "${BLUE}⏰ Tambah Durasi (hari): ${NC}")" duration
+        if [[ ! "$duration" =~ ^[0-9]+$ ]] || [ "$duration" -le 0 ]; then
+            echo -e "${RED}❌ Durasi harus angka positif!${NC}"
+            continue
+        fi
+        break
+    done
+    
+    echo ""
+    echo -e "${YELLOW}🔄 Memperpanjang akun SSH...${NC}"
+    
+    # Prepare API data
+    api_data=$(cat <<EOF
+{
+    "username": "$username",
+    "duration": $duration
+}
+EOF
+)
+    
+    # Call API
+    result=$(api_call "/api/ssh/renew" "POST" "$api_data")
+    
+    # Parse result
+    if echo "$result" | grep -q '"success": true'; then
+        echo ""
+        echo -e "${GREEN}✅ Akun SSH berhasil diperpanjang!${NC}"
+        echo -e "${CYAN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+        
+        # Extract info
+        username_result=$(echo "$result" | grep -o '"username": "[^"]*"' | cut -d'"' -f4)
+        duration_added=$(echo "$result" | grep -o '"duration_added": "[^"]*"' | cut -d'"' -f4)
+        new_expiry=$(echo "$result" | grep -o '"new_expiry": "[^"]*"' | cut -d'"' -f4)
+        
+        echo -e "${YELLOW}📋 HASIL PERPANJANGAN${NC}"
+        echo -e "${CYAN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+        echo -e "${GREEN}👤 Username       : ${YELLOW}$username_result${NC}"
+        echo -e "${GREEN}⏰ Durasi Ditambah : ${YELLOW}$duration hari${NC}"
+        echo -e "${GREEN}📅 Expired Baru   : ${YELLOW}$new_expiry${NC}"
+        echo -e "${CYAN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+        
+    else
+        error_msg=$(echo "$result" | grep -o '"message": "[^"]*"' | cut -d'"' -f4)
+        echo ""
+        echo -e "${RED}❌ Gagal memperpanjang akun SSH!${NC}"
+        echo -e "${RED}Error: $error_msg${NC}"
+    fi
+    
+    echo ""
+    echo -e "${CYAN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+    read -p "$(echo -e "${YELLOW}Tekan Enter untuk kembali ke menu...${NC}")"
+}
+
+# Check if running as root
+if [ "$EUID" -ne 0 ]; then
+    echo -e "${RED}❌ Script ini harus dijalankan sebagai root!${NC}"
+    exit 1
+fi
+
+# Load config and run
+load_api_config
+renew_ssh_account
+

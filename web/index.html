@@ -1,0 +1,578 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AlrelShop VPN Panel</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/alpinejs@3.x.x/dist/cdn.min.js" defer></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+        .gradient-bg {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        }
+        .card-shadow {
+            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.1);
+        }
+        .typing-effect {
+            border-right: 2px solid #667eea;
+            animation: typing 1.5s steps(20) infinite;
+        }
+        @keyframes typing {
+            0%, 50% { border-color: transparent; }
+            51%, 100% { border-color: #667eea; }
+        }
+    </style>
+</head>
+<body class="bg-gray-50 min-h-screen" x-data="vpnPanel()">
+    <!-- Header -->
+    <header class="gradient-bg text-white py-6 shadow-lg">
+        <div class="container mx-auto px-4">
+            <div class="flex items-center justify-between">
+                <div class="flex items-center space-x-3">
+                    <i class="fas fa-shield-alt text-3xl"></i>
+                    <div>
+                        <h1 class="text-2xl font-bold">AlrelShop VPN Panel</h1>
+                        <p class="text-blue-100">Kelola Akun VPN dengan Mudah</p>
+                    </div>
+                </div>
+                <div class="flex items-center space-x-4">
+                    <div class="text-right">
+                        <p class="text-sm text-blue-100">Status API</p>
+                        <span class="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-green-100 text-green-800" x-show="apiStatus === 'online'">
+                            <i class="fas fa-circle text-green-500 mr-2"></i> Online
+                        </span>
+                        <span class="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-red-100 text-red-800" x-show="apiStatus === 'offline'">
+                            <i class="fas fa-circle text-red-500 mr-2"></i> Offline
+                        </span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Content -->
+    <main class="container mx-auto px-4 py-8">
+        <!-- API Configuration Section -->
+        <div class="bg-white rounded-xl card-shadow p-6 mb-8" x-show="!apiConfigured">
+            <div class="text-center">
+                <i class="fas fa-cog text-4xl text-gray-400 mb-4"></i>
+                <h2 class="text-2xl font-bold text-gray-800 mb-4">Konfigurasi API</h2>
+                <p class="text-gray-600 mb-6">Masukkan detail API VPS Anda untuk mulai mengelola akun VPN</p>
+                
+                <div class="max-w-md mx-auto space-y-4">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-2">Server VPS URL</label>
+                        <input 
+                            type="text" 
+                            x-model="config.serverUrl" 
+                            placeholder="http://your-vps-ip:5000"
+                            class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                        >
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-2">API Key</label>
+                        <input 
+                            type="password" 
+                            x-model="config.apiKey" 
+                            placeholder="Masukkan API key Anda"
+                            class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                        >
+                    </div>
+                    <button 
+                        @click="testApiConnection()" 
+                        class="w-full bg-blue-600 text-white py-2 px-4 rounded-lg hover:bg-blue-700 transition duration-200"
+                        :disabled="loading"
+                    >
+                        <i class="fas fa-plug mr-2"></i>
+                        <span x-show="!loading">Test Koneksi</span>
+                        <span x-show="loading">Testing...</span>
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Main Panel -->
+        <div x-show="apiConfigured">
+            <!-- Service Type Tabs -->
+            <div class="bg-white rounded-xl card-shadow mb-8">
+                <div class="border-b border-gray-200">
+                    <nav class="flex space-x-8 px-6" aria-label="Tabs">
+                        <button 
+                            @click="activeTab = 'ssh'"
+                            :class="activeTab === 'ssh' ? 'border-blue-500 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'"
+                            class="whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm transition duration-200"
+                        >
+                            <i class="fas fa-terminal mr-2"></i>SSH
+                        </button>
+                        <button 
+                            @click="activeTab = 'trojan'"
+                            :class="activeTab === 'trojan' ? 'border-blue-500 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'"
+                            class="whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm transition duration-200"
+                        >
+                            <i class="fas fa-user-ninja mr-2"></i>Trojan
+                        </button>
+                        <button 
+                            @click="activeTab = 'v2ray'"
+                            :class="activeTab === 'v2ray' ? 'border-blue-500 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'"
+                            class="whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm transition duration-200"
+                        >
+                            <i class="fas fa-rocket mr-2"></i>V2Ray
+                        </button>
+                    </nav>
+                </div>
+
+                <!-- Form Section -->
+                <div class="p-6">
+                    <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                        <!-- Create Account Form -->
+                        <div class="space-y-6">
+                            <h3 class="text-lg font-semibold text-gray-800 flex items-center">
+                                <i class="fas fa-plus-circle text-green-500 mr-2"></i>
+                                Buat Akun Baru
+                            </h3>
+                            
+                            <div class="space-y-4">
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-700 mb-2">Username</label>
+                                    <input 
+                                        type="text" 
+                                        x-model="form.username" 
+                                        placeholder="Masukkan username"
+                                        class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                                    >
+                                </div>
+                                
+                                <div class="grid grid-cols-2 gap-4">
+                                    <div>
+                                        <label class="block text-sm font-medium text-gray-700 mb-2">Durasi (Hari)</label>
+                                        <input 
+                                            type="number" 
+                                            x-model="form.duration" 
+                                            placeholder="30"
+                                            class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                                        >
+                                    </div>
+                                    <div>
+                                        <label class="block text-sm font-medium text-gray-700 mb-2">IP Limit</label>
+                                        <input 
+                                            type="number" 
+                                            x-model="form.ip_limit" 
+                                            value="2"
+                                            class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                                        >
+                                    </div>
+                                </div>
+                                
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-700 mb-2">Quota (GB)</label>
+                                    <select 
+                                        x-model="form.quota" 
+                                        class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                                    >
+                                        <option value="9999">Unlimited</option>
+                                        <option value="10">10 GB</option>
+                                        <option value="50">50 GB</option>
+                                        <option value="100">100 GB</option>
+                                        <option value="500">500 GB</option>
+                                    </select>
+                                </div>
+                                
+                                <button 
+                                    @click="createAccount()" 
+                                    class="w-full bg-green-600 text-white py-3 px-4 rounded-lg hover:bg-green-700 transition duration-200 flex items-center justify-center"
+                                    :disabled="loading || !form.username || !form.duration"
+                                >
+                                    <i class="fas fa-plus mr-2"></i>
+                                    <span x-show="!loading">Buat Akun</span>
+                                    <span x-show="loading">Membuat...</span>
+                                </button>
+                            </div>
+                        </div>
+
+                        <!-- Account Management -->
+                        <div class="space-y-6">
+                            <h3 class="text-lg font-semibold text-gray-800 flex items-center">
+                                <i class="fas fa-cogs text-blue-500 mr-2"></i>
+                                Kelola Akun
+                            </h3>
+                            
+                            <div class="space-y-4">
+                                <!-- Renew Account -->
+                                <div class="border border-gray-200 rounded-lg p-4">
+                                    <h4 class="font-medium text-gray-700 mb-3">Perpanjang Akun</h4>
+                                    <div class="space-y-3">
+                                        <input 
+                                            type="text" 
+                                            x-model="manage.renewUsername" 
+                                            placeholder="Username"
+                                            class="w-full px-3 py-2 border border-gray-300 rounded focus:ring-2 focus:ring-blue-500"
+                                        >
+                                        <input 
+                                            type="number" 
+                                            x-model="manage.renewDuration" 
+                                            placeholder="Durasi (hari)"
+                                            class="w-full px-3 py-2 border border-gray-300 rounded focus:ring-2 focus:ring-blue-500"
+                                        >
+                                        <button 
+                                            @click="renewAccount()" 
+                                            class="w-full bg-yellow-600 text-white py-2 px-3 rounded hover:bg-yellow-700 transition duration-200"
+                                            :disabled="loading"
+                                        >
+                                            <i class="fas fa-redo mr-2"></i>Perpanjang
+                                        </button>
+                                    </div>
+                                </div>
+
+                                <!-- Delete Account -->
+                                <div class="border border-gray-200 rounded-lg p-4">
+                                    <h4 class="font-medium text-gray-700 mb-3">Hapus Akun</h4>
+                                    <div class="space-y-3">
+                                        <input 
+                                            type="text" 
+                                            x-model="manage.deleteUsername" 
+                                            placeholder="Username"
+                                            class="w-full px-3 py-2 border border-gray-300 rounded focus:ring-2 focus:ring-red-500"
+                                        >
+                                        <button 
+                                            @click="deleteAccount()" 
+                                            class="w-full bg-red-600 text-white py-2 px-3 rounded hover:bg-red-700 transition duration-200"
+                                            :disabled="loading"
+                                        >
+                                            <i class="fas fa-trash mr-2"></i>Hapus
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Result Display -->
+            <div x-show="result" class="bg-white rounded-xl card-shadow p-6 mb-8">
+                <div class="flex items-center justify-between mb-4">
+                    <h3 class="text-lg font-semibold text-gray-800">Hasil Pembuatan Akun</h3>
+                    <button 
+                        @click="copyToClipboard()" 
+                        class="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition duration-200"
+                    >
+                        <i class="fas fa-copy mr-2"></i>Copy
+                    </button>
+                </div>
+                
+                <div class="bg-gray-50 rounded-lg p-4" x-show="result">
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4" x-show="result && result.success">
+                        <div class="space-y-2">
+                            <div class="flex justify-between">
+                                <span class="font-medium text-gray-700">Username:</span>
+                                <span class="text-gray-900" x-text="result.data?.username"></span>
+                            </div>
+                            <div class="flex justify-between" x-show="result.data?.password">
+                                <span class="font-medium text-gray-700">Password:</span>
+                                <span class="text-gray-900 font-mono" x-text="result.data?.password"></span>
+                            </div>
+                            <div class="flex justify-between">
+                                <span class="font-medium text-gray-700">Domain:</span>
+                                <span class="text-gray-900" x-text="result.data?.domain"></span>
+                            </div>
+                        </div>
+                        <div class="space-y-2">
+                            <div class="flex justify-between">
+                                <span class="font-medium text-gray-700">Durasi:</span>
+                                <span class="text-gray-900" x-text="result.data?.duration"></span>
+                            </div>
+                            <div class="flex justify-between">
+                                <span class="font-medium text-gray-700">Quota:</span>
+                                <span class="text-gray-900" x-text="result.data?.quota"></span>
+                            </div>
+                            <div class="flex justify-between">
+                                <span class="font-medium text-gray-700">Expired:</span>
+                                <span class="text-gray-900" x-text="result.data?.expired"></span>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div x-show="result && !result.success" class="text-red-600">
+                        <i class="fas fa-exclamation-triangle mr-2"></i>
+                        <span x-text="result.message"></span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Account List -->
+            <div class="bg-white rounded-xl card-shadow p-6">
+                <div class="flex items-center justify-between mb-6">
+                    <h3 class="text-lg font-semibold text-gray-800">Daftar Akun</h3>
+                    <button 
+                        @click="loadAccounts()" 
+                        class="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition duration-200"
+                    >
+                        <i class="fas fa-refresh mr-2"></i>Refresh
+                    </button>
+                </div>
+                
+                <div class="overflow-x-auto">
+                    <table class="min-w-full divide-y divide-gray-200">
+                        <thead class="bg-gray-50">
+                            <tr>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Username</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Expired</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+                            </tr>
+                        </thead>
+                        <tbody class="bg-white divide-y divide-gray-200">
+                            <template x-for="account in accounts" :key="account.username">
+                                <tr>
+                                    <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900" x-text="account.username"></td>
+                                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500" x-text="account.expiry"></td>
+                                    <td class="px-6 py-4 whitespace-nowrap">
+                                        <span 
+                                            :class="account.status === 'UNLOCKED' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'"
+                                            class="inline-flex px-2 py-1 text-xs font-semibold rounded-full"
+                                            x-text="account.status"
+                                        ></span>
+                                    </td>
+                                </tr>
+                            </template>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <!-- Notification Toast -->
+    <div 
+        x-show="notification.show" 
+        x-transition:enter="transition ease-out duration-300"
+        x-transition:enter-start="opacity-0 transform translate-y-2"
+        x-transition:enter-end="opacity-100 transform translate-y-0"
+        x-transition:leave="transition ease-in duration-200"
+        x-transition:leave-start="opacity-100 transform translate-y-0"
+        x-transition:leave-end="opacity-0 transform translate-y-2"
+        class="fixed top-4 right-4 z-50 max-w-sm w-full"
+    >
+        <div 
+            :class="notification.type === 'success' ? 'bg-green-500' : notification.type === 'error' ? 'bg-red-500' : 'bg-blue-500'"
+            class="text-white p-4 rounded-lg shadow-lg"
+        >
+            <div class="flex items-center">
+                <i 
+                    :class="notification.type === 'success' ? 'fas fa-check-circle' : notification.type === 'error' ? 'fas fa-exclamation-circle' : 'fas fa-info-circle'"
+                    class="mr-3"
+                ></i>
+                <span x-text="notification.message"></span>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        function vpnPanel() {
+            return {
+                activeTab: 'ssh',
+                apiConfigured: false,
+                apiStatus: 'offline',
+                loading: false,
+                result: null,
+                accounts: [],
+                notification: {
+                    show: false,
+                    message: '',
+                    type: 'info'
+                },
+                config: {
+                    serverUrl: '',
+                    apiKey: ''
+                },
+                form: {
+                    username: '',
+                    duration: 30,
+                    quota: 9999,
+                    ip_limit: 2
+                },
+                manage: {
+                    renewUsername: '',
+                    renewDuration: 30,
+                    deleteUsername: ''
+                },
+
+                init() {
+                    // Load config from localStorage
+                    const savedConfig = localStorage.getItem('vpn-panel-config');
+                    if (savedConfig) {
+                        this.config = JSON.parse(savedConfig);
+                        this.apiConfigured = true;
+                        this.checkApiStatus();
+                    }
+                },
+
+                async testApiConnection() {
+                    this.loading = true;
+                    try {
+                        const response = await fetch(this.config.serverUrl, {
+                            headers: {
+                                'X-API-Key': this.config.apiKey
+                            }
+                        });
+                        
+                        if (response.ok) {
+                            this.apiConfigured = true;
+                            this.apiStatus = 'online';
+                            localStorage.setItem('vpn-panel-config', JSON.stringify(this.config));
+                            this.showNotification('Koneksi API berhasil!', 'success');
+                            this.loadAccounts();
+                        } else {
+                            throw new Error('API Key tidak valid');
+                        }
+                    } catch (error) {
+                        this.showNotification('Gagal terhubung ke API: ' + error.message, 'error');
+                    }
+                    this.loading = false;
+                },
+
+                async checkApiStatus() {
+                    try {
+                        const response = await fetch(this.config.serverUrl, {
+                            headers: { 'X-API-Key': this.config.apiKey }
+                        });
+                        this.apiStatus = response.ok ? 'online' : 'offline';
+                    } catch {
+                        this.apiStatus = 'offline';
+                    }
+                },
+
+                async createAccount() {
+                    this.loading = true;
+                    try {
+                        const response = await fetch(`${this.config.serverUrl}/api/${this.activeTab}/create`, {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json',
+                                'X-API-Key': this.config.apiKey
+                            },
+                            body: JSON.stringify(this.form)
+                        });
+                        
+                        const result = await response.json();
+                        this.result = result;
+                        
+                        if (result.success) {
+                            this.showNotification('Akun berhasil dibuat!', 'success');
+                            this.loadAccounts();
+                            this.form.username = '';
+                        } else {
+                            this.showNotification(result.message, 'error');
+                        }
+                    } catch (error) {
+                        this.showNotification('Error: ' + error.message, 'error');
+                    }
+                    this.loading = false;
+                },
+
+                async renewAccount() {
+                    this.loading = true;
+                    try {
+                        const response = await fetch(`${this.config.serverUrl}/api/${this.activeTab}/renew`, {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json',
+                                'X-API-Key': this.config.apiKey
+                            },
+                            body: JSON.stringify({
+                                username: this.manage.renewUsername,
+                                duration: this.manage.renewDuration
+                            })
+                        });
+                        
+                        const result = await response.json();
+                        this.result = result;
+                        
+                        if (result.success) {
+                            this.showNotification('Akun berhasil diperpanjang!', 'success');
+                            this.loadAccounts();
+                            this.manage.renewUsername = '';
+                        } else {
+                            this.showNotification(result.message, 'error');
+                        }
+                    } catch (error) {
+                        this.showNotification('Error: ' + error.message, 'error');
+                    }
+                    this.loading = false;
+                },
+
+                async deleteAccount() {
+                    if (!confirm('Yakin ingin menghapus akun ini?')) return;
+                    
+                    this.loading = true;
+                    try {
+                        const response = await fetch(`${this.config.serverUrl}/api/${this.activeTab}/delete`, {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json',
+                                'X-API-Key': this.config.apiKey
+                            },
+                            body: JSON.stringify({
+                                username: this.manage.deleteUsername
+                            })
+                        });
+                        
+                        const result = await response.json();
+                        
+                        if (result.success) {
+                            this.showNotification('Akun berhasil dihapus!', 'success');
+                            this.loadAccounts();
+                            this.manage.deleteUsername = '';
+                        } else {
+                            this.showNotification(result.message, 'error');
+                        }
+                    } catch (error) {
+                        this.showNotification('Error: ' + error.message, 'error');
+                    }
+                    this.loading = false;
+                },
+
+                async loadAccounts() {
+                    try {
+                        const response = await fetch(`${this.config.serverUrl}/api/${this.activeTab}/list`, {
+                            headers: { 'X-API-Key': this.config.apiKey }
+                        });
+                        
+                        const result = await response.json();
+                        if (result.success) {
+                            this.accounts = result.data;
+                        }
+                    } catch (error) {
+                        console.error('Failed to load accounts:', error);
+                    }
+                },
+
+                copyToClipboard() {
+                    if (!this.result || !this.result.data) return;
+                    
+                    let text = `=== AKUN VPN ===\n`;
+                    text += `Username: ${this.result.data.username}\n`;
+                    if (this.result.data.password) {
+                        text += `Password: ${this.result.data.password}\n`;
+                    }
+                    text += `Domain: ${this.result.data.domain}\n`;
+                    text += `Expired: ${this.result.data.expired}\n`;
+                    text += `Quota: ${this.result.data.quota}\n`;
+                    
+                    navigator.clipboard.writeText(text).then(() => {
+                        this.showNotification('Data berhasil disalin!', 'success');
+                    });
+                },
+
+                showNotification(message, type = 'info') {
+                    this.notification = { show: true, message, type };
+                    setTimeout(() => {
+                        this.notification.show = false;
+                    }, 3000);
+                }
+            }
+        }
+    </script>
+</body>
+</html>
+

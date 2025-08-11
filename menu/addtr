@@ -1,0 +1,232 @@
+#!/bin/bash
+
+# Trojan Account Creator with API Integration
+# AlrelShop VPN Management System
+
+# Colors
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+BLUE='\033[0;34m'
+PURPLE='\033[0;35m'
+CYAN='\033[0;36m'
+NC='\033[0m'
+
+# API Configuration
+API_CONFIG="/etc/vpn-api/config.json"
+API_URL="http://localhost:5000"
+API_KEY=""
+
+# Load API configuration
+load_api_config() {
+    if [ -f "$API_CONFIG" ]; then
+        API_KEY=$(grep -o '"api_key": "[^"]*"' $API_CONFIG | cut -d'"' -f4)
+    else
+        echo -e "${RED}❌ API configuration not found.${NC}"
+        exit 1
+    fi
+}
+
+# Function to make API call
+api_call() {
+    local endpoint="$1"
+    local method="$2"
+    local data="$3"
+    
+    curl -s -X "$method" \
+         -H "Content-Type: application/json" \
+         -H "X-API-Key: $API_KEY" \
+         -d "$data" \
+         "$API_URL$endpoint"
+}
+
+# Display header
+show_header() {
+    clear
+    echo -e "${CYAN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+    echo -e "${YELLOW}                  ALRELSHOP VPN PANEL                   ${NC}"
+    echo -e "${CYAN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+    echo -e "${GREEN}                   Trojan Account Creator               ${NC}"
+    echo -e "${CYAN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+    echo ""
+}
+
+# Create Trojan account
+create_trojan_account() {
+    show_header
+    
+    echo -e "${YELLOW}📝 Silakan isi data akun Trojan:${NC}"
+    echo ""
+    
+    # Input username
+    while true; do
+        read -p "$(echo -e "${BLUE}👤 Username: ${NC}")" username
+        if [ -z "$username" ]; then
+            echo -e "${RED}❌ Username tidak boleh kosong!${NC}"
+            continue
+        fi
+        
+        # Check if username already exists in xray config
+        if grep -q "#$username" /etc/xray/config.json 2>/dev/null; then
+            echo -e "${RED}❌ Username $username sudah ada!${NC}"
+            continue
+        fi
+        break
+    done
+    
+    # Input duration
+    while true; do
+        read -p "$(echo -e "${BLUE}⏰ Durasi (hari): ${NC}")" duration
+        if [[ ! "$duration" =~ ^[0-9]+$ ]] || [ "$duration" -le 0 ]; then
+            echo -e "${RED}❌ Durasi harus angka positif!${NC}"
+            continue
+        fi
+        break
+    done
+    
+    # Input quota
+    echo -e "${BLUE}💾 Pilih Quota:${NC}"
+    echo "1. Unlimited (9999 GB)"
+    echo "2. 10 GB"
+    echo "3. 50 GB"
+    echo "4. 100 GB"
+    echo "5. 500 GB"
+    echo "6. Custom"
+    
+    while true; do
+        read -p "$(echo -e "${BLUE}Pilihan (1-6): ${NC}")" quota_choice
+        case $quota_choice in
+            1) quota=9999; break;;
+            2) quota=10; break;;
+            3) quota=50; break;;
+            4) quota=100; break;;
+            5) quota=500; break;;
+            6) 
+                read -p "$(echo -e "${BLUE}Custom quota (GB): ${NC}")" quota
+                if [[ ! "$quota" =~ ^[0-9]+$ ]]; then
+                    echo -e "${RED}❌ Quota harus angka!${NC}"
+                    continue
+                fi
+                break;;
+            *) echo -e "${RED}❌ Pilihan tidak valid!${NC}";;
+        esac
+    done
+    
+    # Input IP limit
+    while true; do
+        read -p "$(echo -e "${BLUE}🌐 IP Limit (default: 2): ${NC}")" ip_limit
+        if [ -z "$ip_limit" ]; then
+            ip_limit=2
+            break
+        fi
+        if [[ ! "$ip_limit" =~ ^[0-9]+$ ]] || [ "$ip_limit" -le 0 ]; then
+            echo -e "${RED}❌ IP limit harus angka positif!${NC}"
+            continue
+        fi
+        break
+    done
+    
+    echo ""
+    echo -e "${YELLOW}🔄 Membuat akun Trojan...${NC}"
+    
+    # Prepare API data
+    api_data=$(cat <<EOF
+{
+    "username": "$username",
+    "duration": $duration,
+    "quota": $quota,
+    "ip_limit": $ip_limit
+}
+EOF
+)
+    
+    # Call API
+    result=$(api_call "/api/trojan/create" "POST" "$api_data")
+    
+    # Parse result
+    if echo "$result" | grep -q '"success": true'; then
+        echo ""
+        echo -e "${GREEN}✅ Akun Trojan berhasil dibuat!${NC}"
+        echo -e "${CYAN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+        
+        # Extract account info
+        username_result=$(echo "$result" | grep -o '"username": "[^"]*"' | cut -d'"' -f4)
+        uuid_result=$(echo "$result" | grep -o '"uuid": "[^"]*"' | cut -d'"' -f4)
+        domain_result=$(echo "$result" | grep -o '"domain": "[^"]*"' | cut -d'"' -f4)
+        expired_result=$(echo "$result" | grep -o '"expired": "[^"]*"' | cut -d'"' -f4)
+        quota_result=$(echo "$result" | grep -o '"quota": "[^"]*"' | cut -d'"' -f4)
+        
+        echo -e "${YELLOW}📋 DETAIL AKUN TROJAN${NC}"
+        echo -e "${CYAN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+        echo -e "${GREEN}👤 Username    : ${YELLOW}$username_result${NC}"
+        echo -e "${GREEN}🔑 UUID        : ${YELLOW}$uuid_result${NC}"
+        echo -e "${GREEN}🌐 Domain      : ${YELLOW}$domain_result${NC}"
+        echo -e "${GREEN}📅 Expired     : ${YELLOW}$expired_result${NC}"
+        echo -e "${GREEN}💾 Quota       : ${YELLOW}$quota_result GB${NC}"
+        echo -e "${GREEN}🔢 IP Limit    : ${YELLOW}$ip_limit${NC}"
+        echo -e "${CYAN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+        
+        # Connection info
+        echo ""
+        echo -e "${YELLOW}🔗 INFO KONEKSI TROJAN:${NC}"
+        echo -e "${GREEN}Host      : ${YELLOW}$domain_result${NC}"
+        echo -e "${GREEN}Port      : ${YELLOW}443${NC}"
+        echo -e "${GREEN}UUID      : ${YELLOW}$uuid_result${NC}"
+        echo -e "${GREEN}Security  : ${YELLOW}TLS${NC}"
+        echo -e "${GREEN}Network   : ${YELLOW}WS${NC}"
+        echo -e "${GREEN}Path      : ${YELLOW}/trojan-ws${NC}"
+        echo ""
+        
+        # Trojan link
+        trojan_link="trojan://$uuid_result@$domain_result:443?security=tls&type=ws&path=/trojan-ws#$username_result"
+        echo -e "${YELLOW}🔗 TROJAN LINK:${NC}"
+        echo -e "${CYAN}$trojan_link${NC}"
+        echo ""
+        
+        # Save to file
+        mkdir -p /root/akun/trojan
+        cat > /root/akun/trojan/$username.txt << EOF
+=== AKUN TROJAN ===
+Username: $username_result
+UUID: $uuid_result
+Domain: $domain_result
+Expired: $expired_result
+Quota: $quota_result GB
+IP Limit: $ip_limit
+
+=== INFO KONEKSI ===
+Host: $domain_result
+Port: 443
+UUID: $uuid_result
+Security: TLS
+Network: WS
+Path: /trojan-ws
+
+=== TROJAN LINK ===
+$trojan_link
+EOF
+        
+        echo -e "${GREEN}💾 Akun telah disimpan di: /root/akun/trojan/$username.txt${NC}"
+        
+    else
+        error_msg=$(echo "$result" | grep -o '"message": "[^"]*"' | cut -d'"' -f4)
+        echo ""
+        echo -e "${RED}❌ Gagal membuat akun Trojan!${NC}"
+        echo -e "${RED}Error: $error_msg${NC}"
+    fi
+    
+    echo ""
+    echo -e "${CYAN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+    read -p "$(echo -e "${YELLOW}Tekan Enter untuk kembali ke menu...${NC}")"
+}
+
+# Check if running as root
+if [ "$EUID" -ne 0 ]; then
+    echo -e "${RED}❌ Script ini harus dijalankan sebagai root!${NC}"
+    exit 1
+fi
+
+# Load config and run
+load_api_config
+create_trojan_account
+
