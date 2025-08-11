@@ -387,23 +387,34 @@ cat > /usr/local/bin/requestapi << 'EOF'
 #!/bin/bash
 
 # API Key Display Script
+# AlrelShop VPN Management API
+
 API_CONFIG="/etc/vpn-api/config.json"
 
 if [ -f "$API_CONFIG" ]; then
     API_KEY=$(grep -o '"api_key": "[^"]*"' $API_CONFIG | cut -d'"' -f4)
-    API_STATUS=$(systemctl is-active vpn-api)
+    API_STATUS=$(systemctl is-active vpn-api 2>/dev/null || echo "not-running")
+    API_PORT=5000
     
     echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
     echo "                    VPN API INFORMATION                   "
     echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
     echo "API Key    : $API_KEY"
-    echo "API URL    : http://$(curl -s icanhazip.com):5000"
+    echo "API URL    : http://$(curl -s icanhazip.com):$API_PORT"
     echo "Status     : $API_STATUS"
+    echo "Port       : $API_PORT"
     echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
     echo ""
-    echo "Salin API Key dan URL di atas untuk digunakan di panel web Anda"
+    echo "📋 Salin API Key dan URL di atas untuk digunakan di panel web Anda"
+    echo ""
+    echo "🔧 Management Commands:"
+    echo "   systemctl start vpn-api    - Start API server"
+    echo "   systemctl stop vpn-api     - Stop API server"
+    echo "   systemctl restart vpn-api  - Restart API server"
+    echo ""
 else
-    echo "API configuration not found!"
+    echo "❌ API configuration not found!"
+    echo "💡 Jalankan script install terlebih dahulu atau setup manual"
 fi
 EOF
 
